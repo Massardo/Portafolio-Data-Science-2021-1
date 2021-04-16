@@ -1,0 +1,71 @@
+---
+title: "Untitled"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r Librerias y lectura de datos}
+library(tidyr)   #Create tidy data (each column is a variable)
+library(forcats) #Reorder factor levels
+library(dplyr)   #Grammar Data Manipulation
+library(ggplot2) #Create Elegant Data Visualizations
+
+setwd("C:/Users/cvill/OneDrive/Escritorio/RStudio Projects/Actividad 1")
+datos <- read.csv("pokemon.csv")
+```
+
+```{r Selección de columnas y filtración escogida}
+data <- select(datos, X., Name, Type.1, Type.2, HP, Attack)
+data <- filter(data, Type.1 == "Ghost" | Type.2 == "Ghost")
+```
+
+```{r Boxplot de variable data}
+attach(data)
+boxplot(Attack, horizontal = TRUE)
+boxplot.stats(Attack)
+boxplot(HP, horizontal = TRUE)
+boxplot.stats(HP)
+```
+
+```{r Primera limpieza}
+attach(data)
+data <- filter(data, Attack < 165 & HP > 20)
+attach(data)
+boxplot(Attack, horizontal = TRUE)
+boxplot.stats(Attack)
+boxplot(HP, horizontal = TRUE)
+boxplot.stats(HP)
+```
+
+```{r Segunda limpieza}
+attach(data)
+data <- filter(data, Attack < 150 & HP < 100)
+attach(data)
+boxplot(Attack, horizontal = TRUE)
+boxplot.stats(Attack)
+boxplot(HP, horizontal = TRUE)
+boxplot.stats(HP)
+```
+
+```{r Tercera limpieza}
+attach(data)
+data <- filter(data, Attack < 150 & HP > 30)
+attach(data)
+boxplot(Attack, horizontal = TRUE)
+boxplot.stats(Attack)
+boxplot(HP, horizontal = TRUE)
+boxplot.stats(HP)
+```
+
+```{r Cuarta limpieza}
+attach(data)
+data <- filter(data, Attack < 150 & HP < 80)
+attach(data)
+boxplot(Attack, horizontal = TRUE)
+boxplot.stats(Attack)
+boxplot(HP, horizontal = TRUE)
+boxplot.stats(HP)
+```
