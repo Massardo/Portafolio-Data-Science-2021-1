@@ -1,0 +1,61 @@
+---
+title: "Untitled"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#Se instalan las librerias y se lee el archivo
+
+```{r Librerías y lectura de archivo}
+library(quanteda)
+library(dplyr)
+library(tidyverse)
+library(utf8)
+library(ggplot2)
+
+setwd("C:/Users/cvill/OneDrive/Escritorio/RStudio Projects/Actividad 0")
+datos <- read_csv("Primer_Tiempo2020.csv", col_names = TRUE)
+```
+#Se hace una limpieza de datos y se eliminan las columnas que no sirven actualmente
+
+```{r Limpieza de datos}
+datos <- datos[,!(colnames(datos) %in% c("torneo","id_partido","fasepartido", "tiempo"))]
+```
+
+#Se decide las columnas a utilizar y se hace el filtro de columnas
+
+```{r}
+arco <- datos[order(datos$golesSalvados, decreasing = TRUE),]
+arco <- arco[,colnames(datos) %in% c("equipo","partido","local","goalsConceded", "cornerTaken", "penaltyConceded", "penaltySave", "golesSalvados")]
+arco
+```
+
+#Nos enfocamos en el equipo everton y se elimina la columna equipo
+
+```{r}
+everton <- filter(arco, equipo == "Everton")
+everton <- everton[,!(colnames(everton) %in% c("equipo"))]
+everton
+```
+#Se busca los maximos de goles salvados en el equipo de everton
+
+```{r}
+everton_goles_salvados <- c("Max goles salvados everton", max(everton$golesSalvados))
+everton_goles_salvados
+```
+
+#Se realiza el grafico para buscar la relación visual entre goles salvados y la cantidad de corners realizados al equipo Everton en el torneo
+
+
+```{r}
+attach(everton)
+plot(golesSalvados, type="o", col="blue",lwd=5, ylim=c(0,4),xlim=c(0,7))
+     title(xlab="Corners", )
+title(main="Goles salvados con corners rivales en Everton", col.main="red", font.main=2)
+```
+
+
+
