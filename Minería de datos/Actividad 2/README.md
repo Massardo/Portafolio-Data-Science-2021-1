@@ -268,7 +268,7 @@ image(tempDist)
 ```
 
 ![](Analisis-de-clustering_files/figure-gfm/unnamed-chunk-13-1.png)<!-- -->
-\# 2.3 Metodo estadístico de Hopkins e indice de correlación
+## 2.3 Metodo estadístico de Hopkins e indice de correlación
 
 ``` r
 res <- get_clust_tendency(data2, n=30, graph = FALSE)
