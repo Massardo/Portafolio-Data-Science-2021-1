@@ -1,0 +1,246 @@
+---
+title: "Playlist de música"
+output: github_document
+---
+
+```{r}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## 1. Librerías
+
+Se añaden las librerías para tener acceso a las funciones que permite utilizar Rstudio
+
+```{r}
+library(tidyverse)
+library(ggdendro)
+library(factoextra)
+library(cluster)
+library(mclust)
+```
+
+## 2. Carga y limpieza de datos
+
+Se carga el archivo "beats" que contiene la información necesaria de las canciones para la creación de la playlist.
+
+Debido al exceso de datos en el archivo "beats", se seleccionaron las columnas que unicamente nos servirían. Estas son: Artist_name, Track_name, Track_id, Duration_ms y las variables representativas de cada canción (danceability, energy, key, loudness, mode, speechiness, acousticness, instrumentalness, liveness, valence, tempo).
+
+Las variables de artist_name, track_name y track_id son para diferenciar las canciones una de otra, mientras que la variable duration_ms servirá más adelante para ponerle un límite a la duración de la playlist.
+
+Las variables representativas son indicadores que contienen todas las canciones y sirven para diferenciarse unas de otras a la hora de ser analizadas. Por ejemplo, la variable liveness mide si la canción grabada fue realizada en un concierto o en un estudio al analizar el sonido que la canción guarda. Si la grabación de nuestra canción no fue en un concierto, entonces bajará la probabilidad de que en nuestra playlist exista alguna canción realizada en vivo.
+
+Dicho lo anterior, se procedió a eliminar los track_id duplicados de nuestra fuente de información y se prosiguió con eliminar los campos vacíos y NAs que existían para evitar futuros errores de cálculo en el análisis.
+
+```{r}
+load("C:/Users/cvill/OneDrive/Escritorio/RStudio Projects/Proyecto 2 21-05/beats.RData")
+
+beats <- select(beats, 8:18, artist_name, track_name, track_id, duration_ms)
+
+beats <- beats[!duplicated(beats$track_id),]
+
+beats[beats == ""] <- NA
+beats <- na.omit(beats)
+```
+
+## 3. Transformación de tipo de datos
+
+Para lograr eficazmente el análisis de la playlist, habrá que convertir los datos. Se guardarán como double los que son numéricos e int, mientras que se convertirán en character los que sean texto o información no numérica.
+
+```{r}
+beats$danceability <- as.double(as.character(beats$danceability))
+beats$energy <- as.double(as.character(beats$energy))
+beats$key <- as.double(as.character(beats$key))
+beats$loudness <- as.double(as.character(beats$loudness))
+beats$mode <- as.double(as.character(beats$mode))
+beats$speechiness <- as.double(as.character(beats$speechiness))
+beats$acousticness <- as.double(as.character(beats$acousticness))
+beats$instrumentalness <- as.double(as.character(beats$instrumentalness))
+beats$liveness <- as.double(as.character(beats$liveness))
+beats$valence <- as.double(as.character(beats$valence))
+beats$tempo <- as.double(as.character(beats$tempo))
+
+
+beats$artist_name <- as.character(beats$artist_name)
+beats$track_name <- as.character(beats$track_name)
+beats$track_id <- as.character(beats$track_id)
+
+
+beats$duration_ms <- as.double(as.character(beats$duration_ms))
+```
+
+## 4. Selección de muestra 
+
+Debido a la gran cantidad de información que se posee, se decidió hacer un muestreo para simplificar los análisis realizados y que no tarde demasiado en el proceso de creación de la playlist (ya que existirá información que no será utilizada una vez que designemos los grupos y sepamos en qué grupo está nuestra canción).
+
+Para realizar este proceso, nos debemos asegurar que la muestra utilizada es fiable y similar a la base beats. Es por ello que verificaremos si se asimilan algunos datos estadísticos como su promedio, su mediana y su desviación estandar. 
+
+```{r}
+set.seed(1000)
+muestra <- beats[sample(nrow(beats), 10000),]
+```
+
+```{r}
+test_media <- select(beats, 1:10)
+apply(test_media, 2, mean)
+
+
+test_media <- select(muestra, 1:10)
+apply(test_media, 2, mean)
+```
+
+```{r}
+test_mediana <- select(beats, 1:10)
+apply(test_mediana, 2, median)
+
+
+test_mediana <- select(muestra, 1:10)
+apply(test_mediana, 2, median)
+```
+```{r}
+test_desviacion <- select(beats, 1:10)
+apply(test_desviacion, 2, sd)
+
+
+test_desviacion <- select(muestra, 1:10)
+apply(test_desviacion, 2, sd)
+```
+
+Los valores son similares entre ambos con un margen de error menor al 5% por lo que el análisis que se realizará con la muestra obtenida es de alta fiabilidad.
+
+## 5. Escalamiento de datos
+
+Con el cambio de tipo de datos y la muestra ya obtenida, podemos comenzar a escalar los datos para que todos tengan un mismo peso a la hora de comenzar el análisis.
+
+```{r}
+data_escalada <- select(muestra, 1:11)
+data_escalada <- data.frame(sapply(data_escalada, scale))
+```
+
+## 6. Gráfico de codo
+
+Como primera interacción, se decidió ver la evolución de la suma cuadrada inter-clusters al aumentar el número de clusters para tener una referencia aproximada de donde se comenzará el análisis y su número K.
+
+Con el siguiente gráfico queda claro la evolución, pero para ser más precisos se decidió también realizar analizar la evolución del coeficiente de siluetas al aumentar los Ks para tomar la siguiente decisión en el análisis.
+```{r}
+SSinterior <- numeric(30)
+
+for(k in 1:30){
+  modelo <- kmeans(data_escalada, centers = k)
+  SSinterior[k] <- modelo$tot.withinss
+}
+
+plot(SSinterior, type="o", pch=19, frame=FALSE, xlab="Número de clusters K", ylab="Total within-clusters sum of squares")
+```
+
+## 7. Gráfico coeficente de silueta
+
+Como anteriormente se dijo, el coeficiente de silueta nos indica una posición clara para comenzar a trabajar y queda representado por el mayor valor en el gráfico. En este caso, K = 3.
+
+Anteriormente, había realizado el mismo análisis pero con la muestra original de la base de datos (500.000 canciones) y resultó K = 27. Este cambio se debe al tamaño de la muestra que tomamos inicialmente y es comprensible que tambien se reduzcan los números de clusters, por lo que se decidió continuar con K = 3.
+
+```{r}
+coefSil = numeric(30)
+for(k in 2:30){
+  modelo <- kmeans(data_escalada, centers = k)
+  temp <- silhouette(modelo$cluster, dist(data_escalada))
+  coefSil[k] <- mean(temp[,3])
+}
+tempDF = data.frame(CS=coefSil, K=c(1:30))
+
+ggplot(tempDF, aes(x=K, y=CS)) + geom_line() + scale_x_continuous(breaks = c(1:30))
+```
+
+## 8. Análisis gráfico de clusters en danceability / energy
+
+Debido al bajo valor de K, el tamaño de cada clusters es distinto y las canciones pertenecen a cada uno de ellos. Queda claro que, además, si bien se nota una fuerte diferencia entre los clusters 2 y 3, el cluster 1 está entre ellos más que nada tomando los datos atípicos.
+```{r}
+modelo_kmeans <- kmeans(data_escalada, centers = 3)
+prueba1 <- data_escalada
+prueba1$clus <- modelo_kmeans$cluster %>% as.factor()
+
+ggplot(prueba1, aes(danceability, energy, color=clus)) + geom_point(alpha=0.5, show.legend = T) + theme_bw()
+```
+
+Como se puede ver en los resultados, el cluster 1 solo tiene 263 datos, cluster 2 tiene 3399 datos y el cluster 3 6338, siendo este el más grande por mucha diferencia. Aquí también entraría como rol fundamental las diferentes variables representativas que se mencionaron en el principio del estudio. No fueron mostradas ni graficadas las otras ya que no es necesario para el análisis, sino que sirven como ayuda visual a la hora de decidir.
+
+```{r}
+modelo_kmeans$size
+```
+
+# 9. Gráfico gaussiano multivariado
+
+A continuación, se procederá a ver la evolución y de qué manera se están relacionando las distintas variables representativas entre ellas, en las que, como se puede apreciar, el color rojo es predominante en cada escenario debido al tamaño de muestra y la distancia existente entre datos y el centro del cluster.
+
+Con esto, se hará una nueva prueba de clusters debido a la adaptación de la media del cluster y el número de clusters para coincidir aún más la muestra dentro de cada cluster.
+
+```{r}
+gmm <- Mclust(prueba1)
+
+plot(gmm, what="classification")
+```
+
+El proceso completado recomendó concretar el análisis con un modelo de 7 componentes, es decir, 7 clusters. Esto llega a ser más beneficioso para el resultado final debido a que las canciones que sean de un mismo cluster tendrán características similares y por ende, la playlist será un exito.
+
+```{r}
+summary(gmm)
+```
+
+# 10. Canción de referencia
+
+Como ahora haremos la playlist en base a 7 clusters, deberemos registrar el número de cada cluster dentro de cada canción para que, al realizar la playlist, facilite el proceso de escoger solo las que pertenezcan al cluster de la canción referenciada.
+
+```{r}
+clasificacion <- gmm$classification
+rank <- cbind(muestra, clasificacion)
+```
+
+Se escogió la canción Aerodynamite de Daft Punk, la cual si se encuentra dentro de la muestra que logramos sacar. Ahora que, se sabe que el track_id y el cluster al que pertenece nuestra canción, podemos crear la playlist.
+
+```{r}
+cancion <- filter(rank, artist_name=="Daft Punk", track_name=="Aerodynamite")
+print(cancion$track_id)
+print(cancion$clasificacion)
+```
+Se crea una lista que almacene todas las canciones que pertenecen al mismo cluster que la canción referenciada.
+
+```{r}
+lista <- filter(rank, clasificacion == cancion$clasificacion)
+```
+
+A continuación, se hace el proceso de guardar en la variable playlist, las canciones que pertenezcan a la variable lista, creada anteriormente. Este proceso de guardado se hará una por una mientras se cumpla la condición de que el tiempo sumado entre todas las canciones que entren a la playlist no superen el valor de 10800000 ms o 3 hrs. Cuando se rompa esta condición, no se guardarán más canciones en la playlist.
+
+```{r}
+playlist <- NULL
+playlist <- rbind.data.frame(playlist, cancion)
+
+duracion_actual <- cancion$duration_ms
+duracion_maxima <- 10800000
+
+repeat{
+  cancion2 <- lista[sample(nrow(lista),1),]
+  
+  if(any(playlist$track_id == cancion2$track_id)) {
+    next
+  }
+  
+  playlist <- rbind.data.frame(playlist,cancion2)
+  
+  duracion_actual = duracion_actual + as.numeric(cancion2$duration_ms)
+
+  if(duracion_actual >= duracion_maxima)
+    break
+}
+
+```
+
+Para facilitar la comprensión, se imprimirá solo el nombre de la canción y el nombre del artista que se almacenaron en la playlist.
+
+```{r}
+playlist <- select(playlist,"artist_name", "track_name")
+playlist
+```
+La duración total de la playlist es la siguiente (medida en horas).
+
+```{r}
+duracion_actual/60000/60
+```
