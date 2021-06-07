@@ -1,0 +1,139 @@
+---
+title: "Untitled"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(GGally)
+library(regclass)
+library(pROC)
+library(rsample)
+library(olsrr)
+```
+
+```{r}
+setwd("C:/Users/cvill/OneDrive/Escritorio/RStudio Projects/Ayudantia 9")
+toyota <- read.csv("toyota.csv")
+vinos <- read.csv("winequality-red.csv")
+```
+
+```{r}
+toyota$model <- as.factor(toyota$model)
+toyota$transmission <- as.factor(toyota$transmission)
+toyota$fuelType <- as.factor(toyota$fuelType)
+
+head(toyota)
+```
+
+```{r}
+toyota %>% filter(engineSize == 0) %>% nrow()
+```
+
+```{r}
+toyota <- toyota %>%  filter(engineSize != 0)
+toyota %>% filter(engineSize == 0) %>% nrow()
+```
+
+```{r}
+toyota %>% select(year, mileage, tax, mpg, engineSize, price) %>% 
+  ggpairs(lower = list(continuous = wrap("points", alpha = 0.3, size = 0.5)))
+```
+
+```{r}
+toyota %>% 
+  ggplot(aes(transmission, price)) +
+  geom_boxplot()
+```
+
+```{r}
+toyota%>% 
+  ggplot(aes(fuelType, price)) +
+  geom_boxplot()
+```
+
+```{r}
+toyota %>% mutate(model = reorder(model, price)) %>%
+  ggplot(aes(price, model)) +
+  geom_boxplot()
+```
+
+```{r}
+toyota %>% ggplot(aes(mileage, price)) +
+  geom_point(alpha = .1) +
+  stat_smooth(method = "gam", formula = y ~ s(x, k=3))
+```
+
+```{r}
+toyota%>% ggplot(aes(year, price)) +
+  geom_point(alpha = .1) +
+  stat_smooth(method = "gam", formula = y ~ s(x, k=3))
+```
+
+```{r}
+toyota %>% ggplot(aes(mpg, price)) +
+  geom_point(alpha = .1) +
+  stat_smooth(method = "gam", formula = y ~ s(x, k=3))
+```
+
+```{r}
+toyota %>% ggplot(aes(engineSize, price)) +
+  geom_point(alpha = .1) +
+  stat_smooth(method = "gam", formula = y ~ s(x, k=3))
+```
+
+```{r}
+toyota %>% filter(., year >= 2005) %>% ggplot(aes(year, price)) +
+  geom_point(alpha = .1) +
+  stat_smooth(method = "gam", formula = y ~ s(x, k=3))
+```
+
+```{r}
+toyota_sca <- toyota
+toyota_sca[,c(2,3,5,7,8,9)] <- scale(toyota_sca[,c(2,3,5,7,8,9)])
+toyota_sca %>%  head()
+```
+
+```{r}
+reg_simp <- lm(price ~ mileage, data = toyota)
+summary(reg_simp)
+```
+
+```{r}
+reg_mult <- lm(price ~ model + year*mileage + engineSize + mpg, data = toyota_sca)
+summary(reg_mult)
+```
+
+```{r}
+VIF(reg_mult)
+```
+
+```{r}
+fuerza_bruta <- ols_step_all_possible(reg_mult)
+
+plot(fuerza_bruta)
+```
+
+```{r}
+summary(vinos)
+```
+
+```{r}
+ggplot(vinos,aes(x=factor(quality))) +
+  geom_bar(col ="black",fill="#993333",alpha=0.5) +
+  theme(axis.text.x = element_text(face="bold", size=10)) +
+  scale_x_discrete("calidad") +
+  scale_y_continuous("cantidad")
+```
+
+```{r}
+ggplot(vinos,aes(factor(pH))) +
+  geom_bar(col ="black",fill="#993333",alpha=0.5) +
+  theme(axis.text.x = element_text(face="bold", size=4, angle=30)) +
+  scale_y_continuous("Cantidad",limits = c(0,15),breaks=seq(0,15000,by=1500)) +
+  scale_x_discrete("pH")
+```
