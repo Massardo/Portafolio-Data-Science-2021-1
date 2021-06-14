@@ -1,0 +1,93 @@
+---
+title: "Ayudantia 10 Actividad"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Librerias
+
+```{r, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(e1071)
+library(caret)
+library(rstan)
+library(rstanarm)
+```
+
+## Datos
+
+```{r}
+setwd("C:/Users/cvill/OneDrive/Escritorio/RStudio Projects/Ayudantia 10")
+banco <- read.csv("UCI_Credit_Card.csv")
+```
+
+```{r}
+glimpse(banco)
+```
+
+## Pre Procesamiento
+
+```{r}
+banco$SEX <- as.factor(banco$SEX)
+levels(banco$SEX) <- c("Male", "Female")
+
+banco$EDUCATION <- as.factor(banco$EDUCATION)
+levels(banco$EDUCATION) <- c("unknown", "graduate school","university","high school","others","unknown","unknown")
+
+banco$MARRIAGE <- as.factor(banco$MARRIAGE)
+levels(banco$MARRIAGE) <- c("Unknown","Married","Single","Others") #hay 4 etapas, (0,1,2,3)
+
+#banco$default.payment.next.month <- as.factor(banco$default.payment.next.month)
+#levels(banco$default.payment.next.month) <- c("Not default", "Default")
+```
+
+```{r}
+banco$PAY_0 <- as.factor(banco$PAY_0)
+banco$PAY_2 <- as.factor(banco$PAY_2)
+banco$PAY_3 <- as.factor(banco$PAY_3)
+banco$PAY_4 <- as.factor(banco$PAY_4)
+banco$PAY_5 <- as.factor(banco$PAY_5)
+banco$PAY_6 <- as.factor(banco$PAY_6)
+```
+
+```{r}
+head(banco)
+```
+
+## Metodo Bayesiano
+
+```{r}
+bayesiano <- stan_glm(default.payment.next.month ~ AGE + SEX + EDUCATION, data = banco, family = gaussian)
+
+model_nb <- naiveBayes(default.payment.next.month ~ AGE + SEX + EDUCATION, banco, laplace=1)
+```
+```{r}
+bancotest <- banco[c(3,4,5:24)]
+
+
+
+bancotest$sex <- NULL
+bancotest$education <- NULL
+bancotest$age <- NULL
+
+str(bancotest)
+```
+
+```{r}
+#pred_nb <- predict(model_nb, newdata = bancotest)
+#confusionMatrix(data=pred_nb, reference = banco$default.payment.next.month)
+```
+
+```{r}
+#library(ROCR)
+
+#pred_test_nb <- predict(model_nb, newdata = bancotest, type="raw")
+#p_test_nb <- prediction(pred_test_nb[,2], banco$Survived)
+#perf_nb <- performance(p_test_nb, "tpr", "fpr")
+#plot(perf_nb, colorize=T)
+#performance(p_test_nb, "auc")@y.values
+```
+
