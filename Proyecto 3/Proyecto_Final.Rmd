@@ -1,0 +1,334 @@
+---
+title: "Untitled"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## 0.    LIBRERIAS
+
+Se cargan las librerias que se utilizarán en este programa de análisis.
+
+```{r}
+library(plyr)
+library(ggplot2)
+library(tidyverse)
+library(tidymodels)
+library(discrim)
+library(caret)
+library(pROC)
+library(naivebayes)
+library(kknn)
+library(rpart)
+library(rpart.plot)
+library(regclass)
+```
+
+## 1.    BASE DE DATOS
+
+Se carga la base de datos "endurance.rds" de HumanPower y se hace un summary para hacer una visualización general de los datos y sus tipos de variables.
+
+```{r}
+endurance <- readRDS("C:/Users/cvill/OneDrive/Escritorio/RStudio Projects/Proyecto 3/endurance.rds")
+
+summary(endurance)
+```
+
+Podemos identificar que la variable "type" contiene la categoría de deporte existentes dentro de la aplicación HumanPower. Esto será de vital importancia a la hora de evaluar las características que registran los datos cada usuario. Con esto, podremos identificar cuáles estarán mal catalogados dentro de la base de datos.
+
+```{r}
+unique(endurance$type)
+```
+## 2. TRANSFORMACIÓN DE VARIABLES
+
+Se hace una transformación de variables de formato char a formato num. Esto facilitará el análisis posterior que realizaremos con la visualización de las variables dentro de gráficos.
+
+Debido a que se nos solicita identificar a los posibles registros erroneos del dispositivo, separaremos la variable "Type" en un caso binario. Si está identificada como "Walk" "Run o "Hike" se te representará con el valor 1. Si se identifica como "Bike" o "EBikeRide" se representará como 0. Esto para facilitar el análisis en los modelos binarios.
+
+```{r}
+endurance$elev_low <- as.numeric(endurance$elev_low)
+endurance$elev_high <- as.numeric(endurance$elev_high)
+endurance$max_speed <- as.numeric(endurance$max_speed)
+endurance$average_speed <- as.numeric(endurance$average_speed)
+
+endurance$has_heartrate <- (endurance$has_heartrate == "TRUE") %>% as.numeric()
+
+endurance$deporte <- (endurance$type == "Walk" | 
+                        endurance$type == "Run" | 
+                        endurance$type == "Hike") %>% as.numeric()
+endurance$deporte <- as.factor(endurance$deporte)
+
+endurance <- na.omit(endurance)
+glimpse(endurance)
+```
+
+## 3. LIMPIEZA DE DATOS
+
+Se visualizarán como están distribuidos los datos para encontrar cuáles son los datos atípicos en las variables numéricas y eliminar a los que fueron registrados erroneamente. Para los datos atípicos que puedan ser verídicos, se conservarán en el modelo.
+
+```{r}
+attach(endurance)
+boxplot(calories, horizontal = TRUE)
+#boxplot.stats(calories)
+boxplot(distance, horizontal = TRUE)
+#boxplot.stats(distance)
+boxplot(average_speed, horizontal = TRUE)
+#boxplot.stats(average_speed)
+boxplot(max_speed, horizontal = TRUE)
+#boxplot.stats(max_speed)
+boxplot(moving_time, horizontal = TRUE)
+#boxplot.stats(moving_time)
+boxplot(elev_low, horizontal = TRUE)
+#boxplot.stats(elev_low)
+boxplot(elev_high, horizontal = TRUE)
+#boxplot.stats(elev_high)
+boxplot(total_elevation_gain, horizontal = TRUE)
+#boxplot.stats(total_elevation_gain)
+```
+
+Como podemos observar en las cajas de bigotes, existe una gran cantidad de datos atípicos debido a la enorme base de datos (+150k obs.). Es por esto que, tras 9 iteraciones con restricciones en las variables numéricas, se alcanzó un punto donde los datos presentes casi hay inexistentes datos atípicos erroneos, pues la mayoría son verídicos. (Un ciclista profesional va a una velocidad máxima de 60 km/hr, y en una sesión de entrenamiento intensa no se queman más de 2000 calorías). La distribución de los datos después de la limpieza quedó de la siguiente forma.
+
+```{r}
+attach(endurance)
+endurance <- filter(endurance, calories > 0 & distance > 0 & average_speed > 0 & max_speed > 0 & moving_time > 0 & elev_low > -1000 & elev_high > 0 & total_elevation_gain > 0)
+endurance <- filter(endurance, calories < 2000 & distance< 50000 & average_speed < 40 & max_speed < 60 & moving_time < 20000 & elev_low < 5000 & elev_high < 6000 & total_elevation_gain < 3500)
+attach(endurance)
+boxplot(calories, horizontal = TRUE)
+#boxplot.stats(calories)
+boxplot(distance, horizontal = TRUE)
+#boxplot.stats(distance)
+boxplot(average_speed, horizontal = TRUE)
+#boxplot.stats(average_speed)
+boxplot(max_speed, horizontal = TRUE)
+#boxplot.stats(max_speed)
+boxplot(moving_time, horizontal = TRUE)
+#boxplot.stats(moving_time)
+boxplot(elev_low, horizontal = TRUE)
+#boxplot.stats(elev_low)
+boxplot(elev_high, horizontal = TRUE)
+#boxplot.stats(elev_high)
+boxplot(total_elevation_gain, horizontal = TRUE)
+#boxplot.stats(total_elevation_gain)
+```
+
+## 4. ATRIBUTOS Y VARIABLES
+
+Para comenzar con el proceso de modelamiento de datos, se tomarán las variables numéricas más importantes en el análisis. En este transcurso, se eliminarán variables char y variables numéricas no relevantes en el modelo.
+
+Las seleccionadas son: "Deporte" - "Calories" - "Distance" - "Moving_time" - "elapsed_time" - "average_speed" - "max_speed" - "elev_low" - "elev_high" - "total_elevation_gain".
+
+A excepción de la variable "Deporte" que es factor, las demás actúan como numéricas.
+
+```{r}
+atributos <- select(endurance,"deporte","calories","distance","moving_time","elapsed_time","average_speed","max_speed","elev_low","elev_high","total_elevation_gain")
+
+glimpse(atributos)
+```
+Se inicia el muestreo de la data, tomando el 75% de los datos para el ejercicio y 25% para un testeo de modelos. También se crean subsets para ayudar en los modelos que se ocuparán para el análisis.
+
+```{r}
+data_split <- initial_split(atributos, prop = 3/4)
+
+train_data <- training(data_split) 
+test_data <- testing(data_split)
+
+train <- subset(train_data)
+test <- subset(test_data)
+```
+
+## 5.   REGRESIÓN MULTIPLE
+
+A continuación se hará la regresión multiple de las variables para identificar las variables estadisticamente significativas.
+
+```{r}
+regresion_multiple <- lm(deporte %>% as.numeric() ~ calories+distance+moving_time+elapsed_time+average_speed+max_speed+elev_low+elev_high+total_elevation_gain, data = atributos)
+summary(regresion_multiple)
+```
+
+Los resultados entregados por la regresión multiple da un coef. det. 64.5% y demuestra que hay variables presentes no tan significativas en el modelo.
+
+Estas son: Elapsed_time - elev_low - elev_high
+
+## 6.   MODELO ARBOL DE DECISIÓN
+
+Creamos la receta del modelo.
+
+```{r}
+receta <- recipe(deporte ~ ., data = train)
+receta
+```
+
+Se ocuparan 5 capas de decisión y un mínimo de 10 entidades por hoja.
+
+```{r}
+modelo_trees <-
+  decision_tree(tree_depth = 5, min_n = 10) %>% 
+  set_engine("rpart") %>% 
+  set_mode("classification")
+
+modelo_trees
+```
+
+Con el fit del modelo se calcularán las predicciones y el AUC.
+
+```{r fit modelo}
+fit_mod <- function(mod){
+  
+  modelo_fit <- 
+  workflow() %>% 
+  add_model(mod) %>% 
+  add_recipe(receta) %>% 
+  fit(data = train)
+
+model_pred <- 
+  predict(modelo_fit, test, type = "prob") %>% 
+  bind_cols(test) 
+
+return(model_pred %>% 
+  roc_auc(truth = deporte, .pred_0))
+}
+
+fit_mod(modelo_trees)
+```
+
+El AUC resultante del modelo es de 96,12%, un resultado que pertenece al intervalo [0.9 , 0.97], siendo considerado un test muy bueno. 
+
+
+Con este valor ya podremos analizar la data, pero buscaremos un valor de AUC > 0.97 para tener una mayor confianza en los resultados.
+
+## 6. MODELO REGRESIÓN LOGÍSTICA
+
+```{r}
+modelo_rl <- 
+  logistic_reg() %>% 
+  set_engine("glm")
+
+fit_mod(modelo_rl)
+```
+
+El AUC resultante es de 98.07%, un muy buen valor y que cumple nuestras expectativas de análisis. Continuaremos con el siguiente modelo para comparar valores de AUC.
+
+## 8. MODELO NAIVE BAYES
+
+```{r}
+modelo_nb <-
+  naive_Bayes(smoothness = .8) %>%
+  set_engine("naivebayes")
+
+fit_mod(modelo_nb)
+```
+
+El AUC resultante es de 97.8%.
+
+## 9. MODELO KNN
+
+```{r}
+modelo_knn <-
+  nearest_neighbor(neighbors = 5) %>% 
+  set_engine("kknn") %>% 
+  set_mode("classification")
+
+fit_mod(modelo_knn)
+```
+
+El AUC resultante es de 99.01%. El mejor obtenido hasta ahora.
+
+A continuación veremos la ramificación de los datos.
+
+```{r}
+categorias <- rpart(deporte~., data = train, method = "class")
+
+rpart.plot(categorias)
+
+```
+
+## 9.   PREDICCIÓN DE MODELO
+
+```{r predict modelo}
+pred_deporte <- predict(categorias, newdata = test, type = "class")
+pred_deporte %>% as.data.frame() %>% head()
+pred_deporte %>% as.data.frame() %>% tail()
+test_data$pred_deporte <- pred_deporte
+```
+
+## 10. PREDICCIÓN DE LA CURVA AUC
+
+```{r}
+pred_incom_roc <- predict(categorias, newdata = test, type = "prob")
+pred_incom_roc %>% as.data.frame() %>% head()
+pred_incom_roc %>% as.data.frame() %>% tail()
+pred_incom_roc <- pred_incom_roc %>% as.data.frame()
+prob <- pred_incom_roc$"1"
+```
+## 11. EVALUACIÓN DEL MODELO
+
+```{r}
+
+cm <- confusionMatrix(table(test_data$deporte, test_data$pred_deporte))
+test_data$pred_deporte <- as.factor(test_data$pred_deporte)
+
+table <- data.frame(confusionMatrix(test_data$deporte, test_data$pred_deporte)$table)
+
+print(cm)
+print(cm$byClass)
+
+plotTable <- table %>%
+  mutate(goodbad = ifelse(table$Prediction == table$Reference, "Good", "Bad")) %>%
+  group_by(Reference) %>%
+  mutate(prop = Freq/sum(Freq))
+
+confusionMatrix <- ggplot(data = plotTable, mapping = aes(x = Reference, y = Prediction, fill = goodbad, alpha = prop)) +
+  geom_tile() +
+  geom_text(aes(label = Freq), vjust = .5, fontface  = "bold", alpha = 25, size = 8) +
+  scale_fill_manual(name = " ", values = c(Good = "#F0FF00", Bad = "#34495E")) +
+  scale_alpha(name = " ") +
+  theme_classic() +
+  xlim(rev(levels(table$Reference))) +
+  scale_y_discrete(name = "Predicted", limits = c("1","0")) + 
+  scale_x_discrete(name = "Actual", position = "top") +
+  #theme(legend.position = " ") +
+  theme(text=element_text(size=25,  family="sans")) + 
+  ggtitle("Confusion Matrix") +
+  theme(plot.title = element_text(size = 25, family="sans", face = "bold"))
+  
+confusionMatrix
+```
+
+## 12. GRÁFICA DE LA CURVA AUC
+
+```{r}
+ROC <- roc(test_data$deporte,prob)
+plot(ROC, col = "#fd634b", family = "sans", cex = 2, main = "CART Model ROC Curve 
+AUC = 0.8474")
+auc(ROC)
+```
+
+## 13. MODELO KNN - RESULTADOS
+
+Fue el AUC más alto que se pudo conseguir por lo que se utilizará para calcular los resultados.
+
+```{r}
+Final <- 
+  workflow() %>% 
+  add_model(modelo_knn) %>% 
+  add_recipe(receta) %>% 
+  fit(data = train)
+Final2 <- 
+  predict(Final, test, type = "prob") %>% 
+  bind_cols(test)
+```
+
+```{r}
+test$prediccion <- ifelse(Final2$.pred_0 >= Final2$.pred_1, 0,1)
+```
+
+## 14. ERRORES TOTALES
+
+```{r}
+Errores <- test %>% filter(deporte != prediccion)
+nrow(Errores)
+```
+
+En total, existen 651 errores en la base de datos según el modelo knn.
