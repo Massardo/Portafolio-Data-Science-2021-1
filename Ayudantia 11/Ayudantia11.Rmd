@@ -1,0 +1,156 @@
+---
+title: "Untitled"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## 0. LIBRERIAS
+
+Se cargan las librerías que se utilizarán en el modelo
+
+```{r}
+library(plyr)
+library(ggplot2)
+library(tidyverse)
+library(tidymodels)
+library(discrim)
+library(caret)
+library(readr)
+library(pROC)
+library(naivebayes)
+library(kknn)
+library(rpart)
+library(rpart.plot)
+```
+
+## 1. BASE DE DATOS
+
+Se carga la base de datos "hotel_bookings". Lo que se buscará en este proyecto será determinar si la reserva del hotel será cancelada o no.
+
+```{r}
+hotel_bookings <- read.csv("C:/Users/cvill/OneDrive/Escritorio/RStudio Projects/Ayudantia 11/hotel_bookings.csv")
+
+glimpse(hotel_bookings)
+```
+## 2. FILTRACIÓN DE DATOS
+
+Se toman las variables más importantes en este análisis para introducirlos en los modelos regresión logística, Naive Bayes y KNN.
+
+```{r}
+data <- select(hotel_bookings, 2,8:12,17:19,22,26)
+```
+
+## 3. TRANSFORMACIÓN DE TIPO DE DATOS
+
+Se usará como referencia en el modelo la variable "Is_canceled" para modelar si es predecible o no el comportamiento.
+
+```{r}
+data$is_canceled <- as.factor(data$is_canceled)
+```
+
+## 4. LIMPIEZA DE DATOS
+
+Se borran todos los espacios vacíos y NAs de la base de datos y evitar futuros errores en el análisis.
+
+```{r}
+data[data == ""] <- NA
+data <- na.omit(data)
+```
+
+## 5. SEPARACIÓN DE DATA
+
+```{r}
+data_split <- initial_split(data, prop = 0.75)
+
+train <- training(data_split) 
+test <- testing(data_split)
+```
+
+## 6. CREACIÓN DE MODELO - RECETA
+
+Se utilizará la receta para implementarla en los modelos.
+
+```{r}
+receta <- recipe(is_canceled ~ ., data = train)
+receta
+```
+## 7. FUNCIÓN DEL MODELO
+
+```{r}
+modelo_trees <-
+  decision_tree(tree_depth = 5, min_n = 10) %>% 
+  set_engine("rpart") %>% 
+  set_mode("classification")
+
+modelo_trees
+```
+
+```{r}
+fit_mod <- function(mod){
+  
+  modelo_fit <- 
+  workflow() %>% 
+  add_model(mod) %>% 
+  add_recipe(receta) %>% 
+  fit(data = train)
+
+model_pred <- 
+  predict(modelo_fit, test, type = "prob") %>% 
+  bind_cols(test) 
+
+return(model_pred %>% 
+  roc_auc(truth = is_canceled, .pred_0))
+}
+
+fit_mod(modelo_trees)
+```
+
+## 8. MODELO REGRESIÓN LOGÍSTICA
+
+```{r}
+modelo_rl <- 
+  logistic_reg() %>% 
+  set_engine("glm")
+
+fit_mod(modelo_rl)
+```
+
+El modelo de regresión logística entregó un valor de 66.4%
+
+## 9. MODELO NAIVE BAYES
+
+```{r}
+
+modelo_nb <-
+  naive_Bayes(smoothness = 0.75) %>%
+  set_engine("naivebayes")
+
+fit_mod(modelo_nb)
+```
+
+El modelo de Naive Bayes entregó un valor de 68.5%
+
+## 10. MODELO KNN
+
+```{r}
+modelo_knn <-
+  nearest_neighbor(neighbors = 5) %>% 
+  set_engine("kknn") %>% 
+  set_mode("classification")
+
+fit_mod(modelo_knn)
+```
+
+El modelo de KNN entregó un valor de 65.2%.
+
+Por lo anterior, el método más confiable es el de Naive Baynes
+
+```{r}
+cancelado <- rpart(is_canceled~., data = train, method = "class")
+rpart.plot(cancelado)
+```
+
+La ramificación de los datos queda de la siguiente manera.
